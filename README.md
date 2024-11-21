@@ -17,6 +17,10 @@
 ## Usage
 TODO
 
+## Roadmap
+- [ ] port and test MarketStructure display module in ~/s/valera/
+- [ ] put it up on the page
+
 <br>
 
 <sup>
