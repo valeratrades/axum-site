@@ -18,12 +18,12 @@ tabs_in_doc_comments = "allow"
 
 [dependencies]
 axum = { version = "0.7.9", features = ["http2", "macros", "ws"] }
+chrono = "0.4.38"
 color-eyre = "^0.6.3"
 derive-new = "^0"
-tokio = { version = "1.41.1", features = ["full"] }
+futures = { version = "0.3.31", features = ["compat"] }
 plotly = { version = "0.10.0", features = ["kaleido"] }
-chrono = "0.4.38"
-serde_json = "1.0.133"
 polars = { version = "0.44.2", features = ["polars-io"] }
 reqwest = { version = "0.12.9", features = ["json"] }
-futures = { version = "0.3.31", features = ["compat"] }
+serde_json = "1.0.133"
+tokio = { version = "1.41.1", features = ["full"] }
