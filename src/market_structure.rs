@@ -4,6 +4,7 @@ use chrono::{DateTime, Duration, Utc};
 use futures::future::join_all;
 use plotly::{common::Line, Plot, Scatter};
 use polars::prelude::*;
+use reqwest;
 use serde_json::Value;
 use tokio::sync::Mutex;
 
