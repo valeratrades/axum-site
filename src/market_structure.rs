@@ -10,6 +10,7 @@ use serde_json::Value;
 use tokio::sync::Mutex;
 use v_utils::{trades::Timeframe, utils::Df};
 use crate::utils::deser_reqwest;
+use serde_with::{serde_as, DisplayFromStr};
 
 pub async fn run() -> Result<()> {
 	let symbols = ["BTCUSDT", "ETHUSDT", "ADAUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"]; //dbg
@@ -79,18 +80,27 @@ pub async fn get_historical_data(symbol: &str, timeframe: Timeframe, hours_selec
 	let client = reqwest::Client::new();
 	let response = client.get(&url).send().await?;
 
+	#[serde_as]
 	#[derive(Clone, Debug, Default, derive_new::new, Deserialize)]
 	struct Kline {
 		open_time: i64,
+		#[serde_as(as = "DisplayFromStr")]
 		open: f64,
+		#[serde_as(as = "DisplayFromStr")]
 		high: f64,
+		#[serde_as(as = "DisplayFromStr")]
 		low: f64,
+		#[serde_as(as = "DisplayFromStr")]
 		close: f64,
+		#[serde_as(as = "DisplayFromStr")]
 		volume: f64,
 		close_time: i64,
+		#[serde_as(as = "DisplayFromStr")]
 		quote_asset_volume: f64,
 		trades: u32,
+		#[serde_as(as = "DisplayFromStr")]
 		taker_buy_base: f64,
+		#[serde_as(as = "DisplayFromStr")]
 		taker_by_quote: f64,
 		ignore: String,
 	}
