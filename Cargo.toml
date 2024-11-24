@@ -1,7 +1,9 @@
+cargo-features = [ "edition2024" ]
+
 [package]
 name = "axum-site"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [package.metadata.docs.rs]
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
@@ -24,7 +26,6 @@ derive-new = "^0"
 function_name = "^0.3.0"
 futures = { version = "^0.3.31", features = ["compat"] }
 plotly = { version = "^0.10.0", features = ["kaleido"] }
-polars = { version = "^0.44.2", features = ["polars-io"] }
 reqwest = { version = "^0.12.9", features = ["json"] }
 serde = { version = "^1.0.215", features = ["derive"] }
 serde_json = "^1.0.133"

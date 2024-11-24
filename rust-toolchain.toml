@@ -1,4 +1,4 @@
 [toolchain]
 channel = "nightly-x86_64-unknown-linux-gnu"
-components = [ "rustfmt", "rustc-src" ] #, "rust-analyzer" ] #NB: must include these to be used from flake.nix
-profile = "minimal"
+components = [ "rustc-src", "rust-analyzer" ] #NB: must include these to be used from flake.nix
+profile = "default"

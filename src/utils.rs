@@ -2,14 +2,13 @@ use std::{
 	fs::File,
 	io::Write,
 	path::Path,
-	sync::{atomic::Ordering, Arc},
+	sync::{Arc, atomic::Ordering},
 	time::Duration,
 };
 
-use color_eyre::eyre::{bail, eyre, Report, Result, WrapErr};
+use color_eyre::eyre::{Report, Result, WrapErr, bail, eyre};
 use function_name::named;
-use serde::{de::DeserializeOwned, Deserializer};
-
+use serde::{Deserializer, de::DeserializeOwned};
 
 // Deser Reqwest {{{
 fn deser_reqwest_core<T: DeserializeOwned>(text: String) -> Result<T> {

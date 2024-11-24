@@ -1,10 +1,10 @@
-use axum::{response::Html, routing::get, Router};
+use axum::{Router, response::Html, routing::get};
 mod market_structure;
 pub mod utils;
 
 #[tokio::main]
 async fn main() {
-	color_eyre::install();
+	color_eyre::install().unwrap();
 	market_structure::run().await.unwrap();
 
 	//let app = Router::new().route("/", get(handler));
