@@ -1,4 +1,4 @@
-cargo-features = [ "edition2024" ]
+cargo-features = ["edition2024"]
 
 [package]
 name = "axum-site"
@@ -25,11 +25,11 @@ color-eyre = "^0.6.3"
 derive-new = "^0"
 function_name = "^0.3.0"
 futures = { version = "^0.3.31", features = ["compat"] }
-plotly = { version = "^0.10.0", features = ["kaleido"] }
+plotly = { version = "^0.10.0", features = ["image", "kaleido"] }
 reqwest = { version = "^0.12.9", features = ["json"] }
 serde = { version = "^1.0.215", features = ["derive"] }
 serde_json = "^1.0.133"
 serde_path_to_error = "^0.1.16"
 serde_with = "3.11.0"
 tokio = { version = "^1.41.1", features = ["full"] }
-v_utils = { version = "^1.9.1", features = ["trades"], path = "../v_utils/v_utils" }
+v_utils = { version = "^1.9.1", features = ["trades", "io"], path = "../v_utils/v_utils" }
