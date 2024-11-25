@@ -69,9 +69,12 @@ pub async fn collect_data(symbols: &[String], timeframe: Timeframe, hours_select
 		normalized_df.insert(symbol, normalized);
 	}
 
-	for (_, closes) in normalized_df.iter() {
+	let mut aligned_df = normalized_df.clone();
+	for (key, closes) in normalized_df.iter() {
 		if closes.len() != dt_index.len() {
-			panic!("misaligned");
+			//HACK: maybe we want to fill the missing fields instead if there are not many of them
+			eprintln!("misaligned: {key}");
+			aligned_df.remove(key).unwrap();
 		}
 	}
 
@@ -187,27 +190,25 @@ pub fn plotly_closes(normalized_closes: HashMap<String, Vec<f64>>, dt_index: Vec
 		}
 		add_trace(col_name, 1.0, Some("grey"), None);
 	}
-	for col_name in top.iter() {
+	let mut labeled_trace = |col_name: &str, symbol: Option<&str>, line_width: f64, color: Option<&str>| {
 		let p: f64 = performance.iter().find(|a| &a.0 == col_name).unwrap().1;
-		let mut symbol = col_name[0..col_name.len() - 4].to_string();
-		symbol = symbol.replace("1000", "");
+		let mut symbol = match symbol {
+			Some(s) => s,
+			None => &col_name[0..col_name.len() - 4].to_string().replace("1000", ""),
+		};
 		let sign = if p >= 0.0 { '+' } else { '-' };
 		let change = format!("{:.2}", 100.0 * p.abs());
 		let legend = format!("{:<5}{}{:>5}%", symbol, sign, change);
-		add_trace(col_name, 2.0, None, Some(legend));
+		add_trace(col_name, line_width, color, Some(legend));
+	};
+	for col_name in top.iter() {
+		labeled_trace(col_name, None, 2.0, None);
 	}
 	if contains_btcusdt {
-		let p: f64 = performance.iter().find(|a| &a.0 == "BTCUSDT").unwrap().1;
-		add_trace("BTCUSDT", 3.5, Some("gold"), Some(format!("~BTC~ {:>5}", format!("{:.2}", 100.0 * p))));
+		labeled_trace("BTCUSDT", Some("~BTC~"), 3.5, Some("gold"));
 	}
 	for col_name in bottom.iter().rev() {
-		let p: f64 = performance.iter().find(|a| &a.0 == col_name).unwrap().1;
-		let mut symbol = col_name[0..col_name.len() - 4].to_string();
-		symbol = symbol.replace("1000", "");
-		let sign = if p >= 0.0 { '+' } else { '-' };
-		let change = format!("{:.2}", 100.0 * p.abs());
-		let legend = format!("{:<5}{}{:>5}%", symbol, sign, change);
-		add_trace(col_name, 2.0, None, Some(legend));
+		labeled_trace(col_name, None, 2.0, None);
 	}
 
 	plot
