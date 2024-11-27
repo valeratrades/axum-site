@@ -1,30 +1,30 @@
 use std::{
 	collections::HashMap,
 	mem::transmute,
+	path::Path,
 	sync::{Arc, Mutex},
 };
 
 use chrono::{DateTime, Duration, Utc};
-use color_eyre::eyre::{eyre, Result};
+use color_eyre::eyre::{Result, eyre};
 use futures::future::join_all;
 use plotly::{Plot, Scatter, common::Line};
 use serde::Deserialize;
 use serde_json::Value;
 use serde_with::{DisplayFromStr, serde_as};
 use v_utils::trades::Timeframe;
-use std::path::Path;
 
 use crate::utils::deser_reqwest;
 
 pub async fn try_build(spot_pairs_json_file: &Path) -> Result<Plot> {
 	let json_content = std::fs::read_to_string(spot_pairs_json_file)?;
-    let json_data: Value = serde_json::from_str(&json_content)?;
-    let symbols: Vec<String> = json_data
-        .as_array()
-        .ok_or_else(|| eyre!("Expected an array in the JSON file"))?
-        .iter()
-        .map(|value| value.as_str().unwrap_or_default().to_owned())
-        .collect();
+	let json_data: Value = serde_json::from_str(&json_content)?;
+	let symbols: Vec<String> = json_data
+		.as_array()
+		.ok_or_else(|| eyre!("Expected an array in the JSON file"))?
+		.iter()
+		.map(|value| value.as_str().unwrap_or_default().to_owned())
+		.collect();
 	let symbols: Vec<String> = symbols.into_iter().map(|s| s.to_owned()).collect();
 	let hours_selected = 24;
 	let (normalized_df, dt_index) = collect_data(&symbols, "5m".into(), hours_selected).await?;
@@ -63,7 +63,10 @@ pub async fn collect_data(symbols: &[String], timeframe: Timeframe, hours_select
 	for (symbol, closes) in data.into_iter() {
 		let first_close: f64 = match closes.first() {
 			Some(v) => *v,
-			None => {eprintln!("Received empty data for: {symbol}"); continue;},
+			None => {
+				eprintln!("Received empty data for: {symbol}");
+				continue;
+			}
 		};
 		let normalized = closes.into_iter().map(|p| (p / first_close).ln()).collect();
 		normalized_df.insert(symbol, normalized);
@@ -150,7 +153,7 @@ pub async fn get_historical_data(symbol: &str, timeframe: Timeframe, hours_selec
 }
 
 pub fn plotly_closes(normalized_closes: HashMap<String, Vec<f64>>, dt_index: Vec<DateTime<Utc>>) -> Plot {
-	let mut performance: Vec<(String, f64)> = normalized_closes.iter().map(|(k, v)| (k.clone(), (v[v.len()-1] - v[0]))).collect();
+	let mut performance: Vec<(String, f64)> = normalized_closes.iter().map(|(k, v)| (k.clone(), (v[v.len() - 1] - v[0]))).collect();
 	performance.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
 
 	let n_samples = (performance.len() as f64).ln().round() as usize;

@@ -1,11 +1,8 @@
-use std::sync::{Arc, RwLock};
-
-use axum::{Router, extract::State, response::Html, routing::get};
+use axum::{extract::State, response::Html, routing::get, Router};
 use plotly::Plot;
-use tokio::{
-	net::TcpListener,
-	time::{Duration, sleep},
-};
+use std::sync::Arc;
+use tokio::{net::TcpListener, time::{sleep, Duration}};
+use std::sync::RwLock;
 
 mod market_structure;
 pub mod utils;
@@ -17,6 +14,7 @@ async fn main() {
 	color_eyre::install().unwrap();
 
 	let pairs_file = ExpandedPath::from(std::env::args().nth(1).unwrap());
+
 
 	let plot_html = Arc::new(RwLock::new(String::new()));
 
@@ -53,3 +51,4 @@ async fn update_plot(plot_html: Arc<RwLock<String>>, pairs_file: ExpandedPath) {
 		tokio::time::sleep(tokio::time::Duration::from_secs(60 * 60)).await;
 	}
 }
+

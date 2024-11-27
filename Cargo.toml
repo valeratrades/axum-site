@@ -33,3 +33,7 @@ serde_path_to_error = "^0.1.16"
 serde_with = "3.11.0"
 tokio = { version = "^1.41.1", features = ["full"] }
 v_utils = { version = "^1.9.1", features = ["trades", "io"], path = "../v_utils/v_utils" }
+
+[[example]]
+name = "test"
+path = "src/lsr.rs"
