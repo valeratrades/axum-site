@@ -19,7 +19,8 @@ commit
 functions.sh
 
 ## Nix
-result
+result/
+.direnv/
 
 ## Vim
 *.sw[po]
