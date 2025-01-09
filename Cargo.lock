@@ -3662,6 +3662,7 @@ dependencies = [
  "env_logger",
  "eyre",
  "insta",
+ "reqwest",
  "serde",
  "serde_json",
  "serde_plain",
@@ -3721,7 +3722,7 @@ dependencies = [
 
 [[package]]
 name = "v_utils"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "chrono",
  "console-subscriber",
@@ -3748,7 +3749,7 @@ dependencies = [
 
 [[package]]
 name = "v_utils_macros"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "eyre",
  "heck",
