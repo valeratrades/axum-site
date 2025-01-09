@@ -12,7 +12,6 @@ use serde_json::Value;
 use v_exchanges::core::Exchange as _;
 use v_utils::trades::{Pair, Timeframe};
 
-
 pub async fn try_build(spot_pairs_json_file: &Path) -> Result<Plot> {
 	let json_content = std::fs::read_to_string(spot_pairs_json_file)?;
 	let json_data: Value = serde_json::from_str(&json_content)?;

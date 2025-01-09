@@ -353,7 +353,6 @@ dependencies = [
  "function_name",
  "futures 0.3.31",
  "plotly",
- "reqwest",
  "serde",
  "serde_json",
  "serde_path_to_error",

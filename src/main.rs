@@ -4,7 +4,6 @@ use axum::{Router, extract::State, response::Html, routing::get};
 use tokio::net::TcpListener;
 
 mod market_structure;
-pub mod utils;
 use v_utils::io::ExpandedPath;
 
 //NB: all axum handlers are expected to be async

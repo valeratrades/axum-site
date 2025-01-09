@@ -6,9 +6,6 @@ edition = "2024"
 [package.metadata.docs.rs]
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
 
-[package.metadata.cargo-machete]
-ignored = ["derive-new", "color-eyre", "serde", "tokio", "v_utils"]
-
 [lints.clippy]
 float_cmp = "allow" # is bad for `==` direct comparisons, but `<` and `>` should be allowed
 #get_first = "allow" # const fn, so actually more performant
@@ -24,7 +21,7 @@ derive-new = "^0"
 function_name = "^0.3.0"
 futures = { version = "^0.3.31", features = ["compat"] }
 plotly = { version = "^0.12.0", features = ["image", "kaleido"] }
-reqwest = { version = "^0.12.12", features = ["json"] }
+#reqwest = { version = "^0.12.12", features = ["json"] }
 serde = { version = "^1.0.217", features = ["derive"] }
 serde_json = "^1.0.135"
 serde_path_to_error = "^0.1.16"
