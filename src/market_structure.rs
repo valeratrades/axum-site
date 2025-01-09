@@ -8,13 +8,10 @@ use chrono::{DateTime, Duration, Utc};
 use color_eyre::eyre::{Result, eyre};
 use futures::future::join_all;
 use plotly::{Plot, Scatter, common::Line};
-use serde::Deserialize;
 use serde_json::Value;
-use serde_with::{DisplayFromStr, serde_as};
 use v_exchanges::core::Exchange as _;
 use v_utils::trades::{Pair, Timeframe};
 
-use crate::utils::deser_reqwest;
 
 pub async fn try_build(spot_pairs_json_file: &Path) -> Result<Plot> {
 	let json_content = std::fs::read_to_string(spot_pairs_json_file)?;
@@ -98,38 +95,6 @@ pub async fn get_historical_data(pair: Pair, timeframe: Timeframe, hours_selecte
 
 	let bn = v_exchanges::Binance::default();
 	let klines = bn.futures_klines(pair, timeframe, time_ago.into()).await?;
-
-	//let time_ago_ms = time_ago.timestamp_millis();
-	//let url = format!("https://api.binance.com/api/v3/klines?symbol={pair}&interval={timeframe}&startTime={time_ago_ms}");
-	//let client = reqwest::Client::new();
-	//let response = client.get(&url).send().await?;
-
-	//#[serde_as]
-	//#[allow(unused)]
-	//#[derive(Clone, Debug, Default, Deserialize)]
-	//struct Kline {
-	//	open_time: i64,
-	//	#[serde_as(as = "DisplayFromStr")]
-	//	open: f64,
-	//	#[serde_as(as = "DisplayFromStr")]
-	//	high: f64,
-	//	#[serde_as(as = "DisplayFromStr")]
-	//	low: f64,
-	//	#[serde_as(as = "DisplayFromStr")]
-	//	close: f64,
-	//	#[serde_as(as = "DisplayFromStr")]
-	//	volume: f64,
-	//	close_time: i64,
-	//	#[serde_as(as = "DisplayFromStr")]
-	//	quote_asset_volume: f64,
-	//	trades: u32,
-	//	#[serde_as(as = "DisplayFromStr")]
-	//	taker_buy_base: f64,
-	//	#[serde_as(as = "DisplayFromStr")]
-	//	taker_by_quote: f64,
-	//	ignore: String,
-	//}
-	//let raw_data: Vec<Kline> = deser_reqwest(response).await?;
 
 	let mut open_time = Vec::new();
 	let mut open = Vec::new();
