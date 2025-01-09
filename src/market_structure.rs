@@ -12,40 +12,39 @@ use plotly::{Plot, Scatter, common::Line};
 use serde::Deserialize;
 use serde_json::Value;
 use serde_with::{DisplayFromStr, serde_as};
-use v_utils::trades::Timeframe;
+use v_utils::trades::{Pair, Timeframe};
 
 use crate::utils::deser_reqwest;
 
 pub async fn try_build(spot_pairs_json_file: &Path) -> Result<Plot> {
 	let json_content = std::fs::read_to_string(spot_pairs_json_file)?;
 	let json_data: Value = serde_json::from_str(&json_content)?;
-	let symbols: Vec<String> = json_data
+	let symbols: Vec<Pair> = json_data
 		.as_array()
 		.ok_or_else(|| eyre!("Expected an array in the JSON file"))?
 		.iter()
-		.map(|value| value.as_str().unwrap_or_default().to_owned())
+		.map(|value| value.as_str().unwrap().to_owned().try_into().unwrap())
 		.collect();
-	let symbols: Vec<String> = symbols.into_iter().map(|s| s.to_owned()).collect();
 	let hours_selected = 24;
-	let (normalized_df, dt_index) = collect_data(&symbols, "5m".into(), hours_selected).await?;
+	let (normalized_df, dt_index) = collect_data(symbols, "5m".into(), hours_selected).await?;
 	Ok(plotly_closes(normalized_df, dt_index))
 }
 
-pub async fn collect_data(symbols: &[String], timeframe: Timeframe, hours_selected: i64) -> Result<(HashMap<String, Vec<f64>>, Vec<DateTime<Utc>>)> {
+pub async fn collect_data(symbols: Vec<Pair>, timeframe: Timeframe, hours_selected: i64) -> Result<(HashMap<Pair, Vec<f64>>, Vec<DateTime<Utc>>)> {
 	//HACK: assumes we're never misaligned here,
-	let data: Arc<Mutex<HashMap<String, Vec<f64>>>> = Arc::new(Mutex::new(HashMap::new()));
+	assert!(hours_selected <= 24, "Should have an Error for this but I can't be bothered");
+	let data: Arc<Mutex<HashMap<Pair, Vec<f64>>>> = Arc::new(Mutex::new(HashMap::new()));
 	let dt_index: Arc<Mutex<Vec<DateTime<Utc>>>> = Arc::new(Mutex::new(Vec::new()));
 	let fetch_tasks = symbols.iter().map(|symbol| {
-		let symbol = symbol.clone();
 		let data = Arc::clone(&data);
 		let dt_index = Arc::clone(&dt_index);
 
 		tokio::spawn(async move {
-			match get_historical_data(&symbol, timeframe, hours_selected).await {
+			match get_historical_data(symbol.clone(), timeframe, hours_selected).await {
 				Ok(series) => {
 					let mut data = data.lock().unwrap();
-					data.insert(symbol.clone(), series.col_closes);
-					if &symbol == "BTCUSDT" {
+					data.insert(*symbol, series.col_closes);
+					if &symbol.to_string() == "BTCUSDT" {
 						*dt_index.lock().unwrap() = series.col_open_times;
 					}
 				}
@@ -57,9 +56,9 @@ pub async fn collect_data(symbols: &[String], timeframe: Timeframe, hours_select
 	});
 	join_all(fetch_tasks).await;
 
-	let data: HashMap<String, Vec<f64>> = Arc::try_unwrap(data).unwrap().into_inner().unwrap();
+	let data: HashMap<Pair, Vec<f64>> = Arc::try_unwrap(data).unwrap().into_inner().unwrap();
 	let dt_index = Arc::try_unwrap(dt_index).unwrap().into_inner().unwrap();
-	let mut normalized_df: HashMap<String, Vec<f64>> = HashMap::new();
+	let mut normalized_df: HashMap<Pair, Vec<f64>> = HashMap::new();
 	for (symbol, closes) in data.into_iter() {
 		let first_close: f64 = match closes.first() {
 			Some(v) => *v,
@@ -94,7 +93,7 @@ pub struct RelevantHistoricalData {
 	col_closes: Vec<f64>,
 	col_volumes: Vec<f64>,
 }
-pub async fn get_historical_data(symbol: &str, timeframe: Timeframe, hours_selected: i64) -> Result<RelevantHistoricalData> {
+pub async fn get_historical_data(symbol: Pair, timeframe: Timeframe, hours_selected: i64) -> Result<RelevantHistoricalData> {
 	let time_ago: DateTime<Utc> = Utc::now() - Duration::hours(hours_selected);
 	let time_ago_ms = time_ago.timestamp_millis();
 	let url = format!("https://api.binance.com/api/v3/klines?symbol={symbol}&interval={timeframe}&startTime={time_ago_ms}");
@@ -152,30 +151,28 @@ pub async fn get_historical_data(symbol: &str, timeframe: Timeframe, hours_selec
 	})
 }
 
-pub fn plotly_closes(normalized_closes: HashMap<String, Vec<f64>>, dt_index: Vec<DateTime<Utc>>) -> Plot {
-	let mut performance: Vec<(String, f64)> = normalized_closes.iter().map(|(k, v)| (k.clone(), (v[v.len() - 1] - v[0]))).collect();
+pub fn plotly_closes(normalized_closes: HashMap<Pair, Vec<f64>>, dt_index: Vec<DateTime<Utc>>) -> Plot {
+	let mut performance: Vec<(Pair, f64)> = normalized_closes.iter().map(|(k, v)| (k, (v[v.len() - 1] - v[0]))).collect();
 	performance.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
 
 	let n_samples = (performance.len() as f64).ln().round() as usize;
-	let top: Vec<String> = performance.iter().rev().take(n_samples).map(|x| x.0.clone()).collect();
-	let bottom: Vec<String> = performance.iter().take(n_samples).map(|x| x.0.clone()).collect();
+	let top: Vec<Pair> = performance.iter().rev().take(n_samples).map(|x| x.0.clone()).collect();
+	let bottom: Vec<Pair> = performance.iter().take(n_samples).map(|x| x.0.clone()).collect();
 
 	let mut plot = Plot::new();
 
-	let mut add_trace = |name: &str, width: f64, color: Option<&str>, legend: Option<String>| {
-		//SAFETY: trust me bro
-		let color_static: Option<&'static str> = color.map(|c| unsafe { transmute::<&str, &'static str>(c) });
-		let y_values: Vec<f64> = normalized_closes.get(name).unwrap().to_owned();
+	let mut add_trace = |name: Pair, width: f64, color: Option<&'static str>, legend: Option<String>| {
+		let y_values: Vec<f64> = normalized_closes.get(&name).unwrap().to_owned();
 		let x_values: Vec<usize> = (0..y_values.len()).collect();
 
 		let mut line = Line::new().width(width);
-		if let Some(c) = color_static {
+		if let Some(c) = color {
 			line = line.color(c);
 		}
 
 		let mut trace = Scatter::new(x_values, y_values).mode(plotly::common::Mode::Lines).line(line);
 		if let Some(l) = legend {
-			trace = trace.name(&l);
+			trace = trace.name(l.to_string());
 		} else {
 			trace = trace.show_legend(false);
 		}
@@ -188,12 +185,12 @@ pub fn plotly_closes(normalized_closes: HashMap<String, Vec<f64>>, dt_index: Vec
 			contains_btcusdt = true;
 			continue;
 		}
-		if top.contains(&col_name.to_string()) || bottom.contains(&col_name.to_string()) {
+		if top.contains(col_name) || bottom.contains(col_name) {
 			continue;
 		}
 		add_trace(col_name, 1.0, Some("grey"), None);
 	}
-	let mut labeled_trace = |col_name: &str, symbol: Option<&str>, line_width: f64, color: Option<&str>| {
+	let mut labeled_trace = |col_name: &Pair, symbol: Option<&str>, line_width: f64, color: Option<&str>| {
 		let p: f64 = performance.iter().find(|a| &a.0 == col_name).unwrap().1;
 		let mut symbol = match symbol {
 			Some(s) => s,
@@ -208,7 +205,7 @@ pub fn plotly_closes(normalized_closes: HashMap<String, Vec<f64>>, dt_index: Vec
 		labeled_trace(col_name, None, 2.0, None);
 	}
 	if contains_btcusdt {
-		labeled_trace("BTCUSDT", Some("~BTC~"), 3.5, Some("gold"));
+		labeled_trace("BTCUSDT".try_into().unwrap(), Some("~BTC~"), 3.5, Some("gold"));
 	}
 	for col_name in bottom.iter().rev() {
 		labeled_trace(col_name, None, 2.0, None);
