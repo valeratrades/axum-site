@@ -1,6 +1,5 @@
 use std::{
 	collections::HashMap,
-	mem::transmute,
 	path::Path,
 	sync::{Arc, Mutex},
 };
@@ -12,6 +11,7 @@ use plotly::{Plot, Scatter, common::Line};
 use serde::Deserialize;
 use serde_json::Value;
 use serde_with::{DisplayFromStr, serde_as};
+use v_exchanges::core::Exchange as _;
 use v_utils::trades::{Pair, Timeframe};
 
 use crate::utils::deser_reqwest;
@@ -35,15 +35,15 @@ pub async fn collect_data(symbols: Vec<Pair>, timeframe: Timeframe, hours_select
 	assert!(hours_selected <= 24, "Should have an Error for this but I can't be bothered");
 	let data: Arc<Mutex<HashMap<Pair, Vec<f64>>>> = Arc::new(Mutex::new(HashMap::new()));
 	let dt_index: Arc<Mutex<Vec<DateTime<Utc>>>> = Arc::new(Mutex::new(Vec::new()));
-	let fetch_tasks = symbols.iter().map(|symbol| {
+	let fetch_tasks = symbols.into_iter().map(|symbol| {
 		let data = Arc::clone(&data);
 		let dt_index = Arc::clone(&dt_index);
 
 		tokio::spawn(async move {
-			match get_historical_data(symbol.clone(), timeframe, hours_selected).await {
+			match get_historical_data(symbol, timeframe, hours_selected).await {
 				Ok(series) => {
 					let mut data = data.lock().unwrap();
-					data.insert(*symbol, series.col_closes);
+					data.insert(symbol, series.col_closes);
 					if &symbol.to_string() == "BTCUSDT" {
 						*dt_index.lock().unwrap() = series.col_open_times;
 					}
@@ -93,39 +93,43 @@ pub struct RelevantHistoricalData {
 	col_closes: Vec<f64>,
 	col_volumes: Vec<f64>,
 }
-pub async fn get_historical_data(symbol: Pair, timeframe: Timeframe, hours_selected: i64) -> Result<RelevantHistoricalData> {
+pub async fn get_historical_data(pair: Pair, timeframe: Timeframe, hours_selected: i64) -> Result<RelevantHistoricalData> {
 	let time_ago: DateTime<Utc> = Utc::now() - Duration::hours(hours_selected);
-	let time_ago_ms = time_ago.timestamp_millis();
-	let url = format!("https://api.binance.com/api/v3/klines?symbol={symbol}&interval={timeframe}&startTime={time_ago_ms}");
-	let client = reqwest::Client::new();
-	let response = client.get(&url).send().await?;
 
-	#[serde_as]
-	#[allow(unused)]
-	#[derive(Clone, Debug, Default, Deserialize)]
-	struct Kline {
-		open_time: i64,
-		#[serde_as(as = "DisplayFromStr")]
-		open: f64,
-		#[serde_as(as = "DisplayFromStr")]
-		high: f64,
-		#[serde_as(as = "DisplayFromStr")]
-		low: f64,
-		#[serde_as(as = "DisplayFromStr")]
-		close: f64,
-		#[serde_as(as = "DisplayFromStr")]
-		volume: f64,
-		close_time: i64,
-		#[serde_as(as = "DisplayFromStr")]
-		quote_asset_volume: f64,
-		trades: u32,
-		#[serde_as(as = "DisplayFromStr")]
-		taker_buy_base: f64,
-		#[serde_as(as = "DisplayFromStr")]
-		taker_by_quote: f64,
-		ignore: String,
-	}
-	let raw_data: Vec<Kline> = deser_reqwest(response).await?;
+	let bn = v_exchanges::Binance::default();
+	let klines = bn.futures_klines(pair, timeframe, time_ago.into()).await?;
+
+	//let time_ago_ms = time_ago.timestamp_millis();
+	//let url = format!("https://api.binance.com/api/v3/klines?symbol={pair}&interval={timeframe}&startTime={time_ago_ms}");
+	//let client = reqwest::Client::new();
+	//let response = client.get(&url).send().await?;
+
+	//#[serde_as]
+	//#[allow(unused)]
+	//#[derive(Clone, Debug, Default, Deserialize)]
+	//struct Kline {
+	//	open_time: i64,
+	//	#[serde_as(as = "DisplayFromStr")]
+	//	open: f64,
+	//	#[serde_as(as = "DisplayFromStr")]
+	//	high: f64,
+	//	#[serde_as(as = "DisplayFromStr")]
+	//	low: f64,
+	//	#[serde_as(as = "DisplayFromStr")]
+	//	close: f64,
+	//	#[serde_as(as = "DisplayFromStr")]
+	//	volume: f64,
+	//	close_time: i64,
+	//	#[serde_as(as = "DisplayFromStr")]
+	//	quote_asset_volume: f64,
+	//	trades: u32,
+	//	#[serde_as(as = "DisplayFromStr")]
+	//	taker_buy_base: f64,
+	//	#[serde_as(as = "DisplayFromStr")]
+	//	taker_by_quote: f64,
+	//	ignore: String,
+	//}
+	//let raw_data: Vec<Kline> = deser_reqwest(response).await?;
 
 	let mut open_time = Vec::new();
 	let mut open = Vec::new();
@@ -133,13 +137,13 @@ pub async fn get_historical_data(symbol: Pair, timeframe: Timeframe, hours_selec
 	let mut low = Vec::new();
 	let mut close = Vec::new();
 	let mut volume = Vec::new();
-	for kline in raw_data {
-		open_time.push(DateTime::from_timestamp_millis(kline.open_time).unwrap());
-		open.push(kline.open);
-		high.push(kline.high);
-		low.push(kline.low);
-		close.push(kline.close);
-		volume.push(kline.volume);
+	for k in klines {
+		open_time.push(k.open_time);
+		open.push(k.open);
+		high.push(k.high);
+		low.push(k.low);
+		close.push(k.close);
+		volume.push(k.volume_quote);
 	}
 	Ok(RelevantHistoricalData {
 		col_open_times: open_time,
@@ -152,12 +156,12 @@ pub async fn get_historical_data(symbol: Pair, timeframe: Timeframe, hours_selec
 }
 
 pub fn plotly_closes(normalized_closes: HashMap<Pair, Vec<f64>>, dt_index: Vec<DateTime<Utc>>) -> Plot {
-	let mut performance: Vec<(Pair, f64)> = normalized_closes.iter().map(|(k, v)| (k, (v[v.len() - 1] - v[0]))).collect();
+	let mut performance: Vec<(Pair, f64)> = normalized_closes.iter().map(|(k, v)| (*k, (v[v.len() - 1] - v[0]))).collect();
 	performance.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
 
 	let n_samples = (performance.len() as f64).ln().round() as usize;
-	let top: Vec<Pair> = performance.iter().rev().take(n_samples).map(|x| x.0.clone()).collect();
-	let bottom: Vec<Pair> = performance.iter().take(n_samples).map(|x| x.0.clone()).collect();
+	let top: Vec<Pair> = performance.iter().rev().take(n_samples).map(|x| x.0).collect();
+	let bottom: Vec<Pair> = performance.iter().take(n_samples).map(|x| x.0).collect();
 
 	let mut plot = Plot::new();
 
@@ -172,7 +176,7 @@ pub fn plotly_closes(normalized_closes: HashMap<Pair, Vec<f64>>, dt_index: Vec<D
 
 		let mut trace = Scatter::new(x_values, y_values).mode(plotly::common::Mode::Lines).line(line);
 		if let Some(l) = legend {
-			trace = trace.name(l.to_string());
+			trace = trace.name(&l);
 		} else {
 			trace = trace.show_legend(false);
 		}
@@ -181,33 +185,33 @@ pub fn plotly_closes(normalized_closes: HashMap<Pair, Vec<f64>>, dt_index: Vec<D
 
 	let mut contains_btcusdt = false;
 	for col_name in normalized_closes.keys() {
-		if col_name == "BTCUSDT" {
+		if &col_name.to_string() == "BTCUSDT" {
 			contains_btcusdt = true;
 			continue;
 		}
 		if top.contains(col_name) || bottom.contains(col_name) {
 			continue;
 		}
-		add_trace(col_name, 1.0, Some("grey"), None);
+		add_trace(*col_name, 1.0, Some("grey"), None);
 	}
-	let mut labeled_trace = |col_name: &Pair, symbol: Option<&str>, line_width: f64, color: Option<&str>| {
-		let p: f64 = performance.iter().find(|a| &a.0 == col_name).unwrap().1;
-		let mut symbol = match symbol {
+	let mut labeled_trace = |col_name: Pair, symbol: Option<&str>, line_width: f64, color: Option<&'static str>| {
+		let p: f64 = performance.iter().find(|a| a.0 == col_name).unwrap().1;
+		let symbol = match symbol {
 			Some(s) => s,
-			None => &col_name[0..col_name.len() - 4].to_string().replace("1000", ""),
+			None => &col_name.to_string()[0..col_name.to_string().len() - 4].to_string().replace("1000", ""),
 		};
 		let sign = if p >= 0.0 { '+' } else { '-' };
 		let change = format!("{:.2}", 100.0 * p.abs());
 		let legend = format!("{:<5}{}{:>5}%", symbol, sign, change);
 		add_trace(col_name, line_width, color, Some(legend));
 	};
-	for col_name in top.iter() {
+	for col_name in top.into_iter() {
 		labeled_trace(col_name, None, 2.0, None);
 	}
 	if contains_btcusdt {
 		labeled_trace("BTCUSDT".try_into().unwrap(), Some("~BTC~"), 3.5, Some("gold"));
 	}
-	for col_name in bottom.iter().rev() {
+	for col_name in bottom.into_iter().rev() {
 		labeled_trace(col_name, None, 2.0, None);
 	}
 

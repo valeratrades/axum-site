@@ -1,11 +1,7 @@
 use std::sync::{Arc, RwLock};
 
 use axum::{Router, extract::State, response::Html, routing::get};
-use plotly::Plot;
-use tokio::{
-	net::TcpListener,
-	time::{Duration, sleep},
-};
+use tokio::net::TcpListener;
 
 mod market_structure;
 pub mod utils;
