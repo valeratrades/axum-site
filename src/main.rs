@@ -4,22 +4,17 @@ use axum::{Router, extract::State, response::Html, routing::get};
 use tokio::net::TcpListener;
 
 mod market_structure;
-use v_utils::io::ExpandedPath;
+use v_exchanges::binance;
 
 //NB: all axum handlers are expected to be async
 #[tokio::main]
 async fn main() {
 	color_eyre::install().unwrap();
 
-	let pairs_file = ExpandedPath::from(std::env::args().nth(1).unwrap());
-
 	let plot_html = Arc::new(RwLock::new(String::new()));
-
-	// Start the plot updating task
-	let pairs_file_clone = pairs_file.clone();
 	let plot_html_clone = plot_html.clone();
 	tokio::spawn(async move {
-		update_plot(plot_html_clone, pairs_file_clone).await;
+		update_plot(plot_html_clone).await;
 	});
 
 	let app = Router::new().route("/", get(handler)).with_state(plot_html);
@@ -34,9 +29,13 @@ async fn handler(State(plot_html): State<Arc<RwLock<String>>>) -> Html<String> {
 	Html(plot_html.clone())
 }
 
-async fn update_plot(plot_html: Arc<RwLock<String>>, pairs_file: ExpandedPath) {
+async fn update_plot(plot_html: Arc<RwLock<String>>) {
+	let m = binance::Market::Futures;
+	let hours_back = 24;
+	let tf = "5m".into();
+
 	loop {
-		match market_structure::try_build(&pairs_file).await {
+		match market_structure::try_build(hours_back, tf, m).await {
 			Ok(new_plot) => {
 				let mut html_guard = plot_html.write().unwrap();
 				*html_guard = new_plot.to_html();
