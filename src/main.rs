@@ -4,7 +4,6 @@ use axum::{Router, extract::State, response::Html, routing::get};
 use tokio::net::TcpListener;
 
 mod market_structure;
-use v_exchanges::binance;
 
 //NB: all axum handlers are expected to be async
 #[tokio::main]
@@ -30,7 +29,7 @@ async fn handler(State(plot_html): State<Arc<RwLock<String>>>) -> Html<String> {
 }
 
 async fn update_plot(plot_html: Arc<RwLock<String>>) {
-	let m = binance::Market::Futures;
+	let m: v_exchanges::AbsMarket = "Binance/Futures".into();
 	let hours_back = 24;
 	let tf = "5m".into();
 

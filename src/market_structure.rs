@@ -7,33 +7,31 @@ use chrono::{DateTime, Duration, Utc};
 use color_eyre::eyre::Result;
 use futures::future::join_all;
 use plotly::{Plot, Scatter, common::Line};
-use v_exchanges::{
-	binance,
-	core::{Exchange as _, MarketTrait as _},
-};
+use v_exchanges::prelude::*;
 use v_utils::trades::{Pair, Timeframe};
 
 //TODO: once v_exchanges implements it properly, switch to take in any market
-pub async fn try_build(hours_back: u8, tf: Timeframe, market: binance::Market) -> Result<Plot> {
+pub async fn try_build(hours_back: u8, tf: Timeframe, market: AbsMarket) -> Result<Plot> {
 	let c = market.client();
 	let exch_info = c.exchange_info(market).await.unwrap();
 	let pairs = exch_info.usdt_pairs().collect::<Vec<Pair>>();
 
-	let (normalized_df, dt_index) = collect_data(pairs, tf, hours_back, market).await?;
+	let (normalized_df, dt_index) = collect_data(pairs, tf, hours_back, c).await?;
 	Ok(plotly_closes(normalized_df, dt_index, tf, market))
 }
 
-pub async fn collect_data(pairs: Vec<Pair>, tf: Timeframe, hours_back: u8, m: binance::Market) -> Result<(HashMap<Pair, Vec<f64>>, Vec<DateTime<Utc>>)> {
+pub async fn collect_data(pairs: Vec<Pair>, tf: Timeframe, hours_back: u8, c: Box<dyn Exchange>) -> Result<(HashMap<Pair, Vec<f64>>, Vec<DateTime<Utc>>)> {
 	//HACK: assumes we're never misaligned here,
 	assert!(hours_back <= 24, "Should have an Error for this but I can't be bothered");
 	let data: Arc<Mutex<HashMap<Pair, Vec<f64>>>> = Arc::new(Mutex::new(HashMap::new()));
 	let dt_index: Arc<Mutex<Vec<DateTime<Utc>>>> = Arc::new(Mutex::new(Vec::new()));
+	let source_market: AbsMarket = c.source_market();
 	let fetch_tasks = pairs.into_iter().map(|symbol| {
 		let data = Arc::clone(&data);
 		let dt_index = Arc::clone(&dt_index);
 
 		tokio::spawn(async move {
-			match get_historical_data(symbol, tf, hours_back, m).await {
+			match get_historical_data(symbol, tf, hours_back, source_market).await {
 				Ok(series) => {
 					let mut data = data.lock().unwrap();
 					data.insert(symbol, series.col_closes);
@@ -86,11 +84,10 @@ pub struct RelevantHistoricalData {
 	col_closes: Vec<f64>,
 	col_volumes: Vec<f64>,
 }
-pub async fn get_historical_data(pair: Pair, tf: Timeframe, hours_back: u8, m: binance::Market) -> Result<RelevantHistoricalData> {
+pub async fn get_historical_data(pair: Pair, tf: Timeframe, hours_back: u8, m: AbsMarket) -> Result<RelevantHistoricalData> {
 	let time_ago: DateTime<Utc> = Utc::now() - Duration::hours(hours_back as i64) - tf.duration(); // adjust for ongoing kline being incomplete
 
-	let bn = v_exchanges::Binance::default();
-	let klines = bn.klines(pair, tf, time_ago.into(), m).await?;
+	let klines = m.client().klines(pair, tf, time_ago.into(), m).await?;
 
 	let mut open_time = Vec::new();
 	let mut open = Vec::new();
@@ -116,7 +113,7 @@ pub async fn get_historical_data(pair: Pair, tf: Timeframe, hours_back: u8, m: b
 	})
 }
 
-pub fn plotly_closes(normalized_closes: HashMap<Pair, Vec<f64>>, dt_index: Vec<DateTime<Utc>>, tf: Timeframe, m: binance::Market) -> Plot {
+pub fn plotly_closes(normalized_closes: HashMap<Pair, Vec<f64>>, dt_index: Vec<DateTime<Utc>>, tf: Timeframe, m: AbsMarket) -> Plot {
 	let mut performance: Vec<(Pair, f64)> = normalized_closes.iter().map(|(k, v)| (*k, (v[v.len() - 1] - v[0]))).collect();
 	performance.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
 
@@ -126,7 +123,7 @@ pub fn plotly_closes(normalized_closes: HashMap<Pair, Vec<f64>>, dt_index: Vec<D
 
 	let mut plot = Plot::new();
 	let hours = (dt_index.first().unwrap().signed_duration_since(dt_index.last().unwrap()) + tf.duration() * 1).num_hours().abs();
-	let title = format!("Last {hours}h of {} pairs on {}", normalized_closes.len(), m.fmt_abs());
+	let title = format!("Last {hours}h of {} pairs on {m}", normalized_closes.len());
 	plot.set_layout(plotly::Layout::new().title(title));
 
 	let mut add_trace = |name: Pair, width: f64, color: Option<&'static str>, legend: Option<String>| {
