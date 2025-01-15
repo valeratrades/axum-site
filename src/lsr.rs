@@ -41,10 +41,11 @@ async fn main() {
 
 	for i in 0..SLICE_SIZE {
 		let (short_outlier, long_outlier) = (&lsrs[i], &lsrs[lsrs.len() - i - 1]);
-		println!("{}.....{}", fmt_lsr(short_outlier), fmt_lsr(long_outlier));
+		println!("{}{}", fmt_lsr(short_outlier), fmt_lsr(long_outlier));
 	}
 }
 
 fn fmt_lsr(lsrs: &Lsrs) -> String {
-	format!("{}: {}", lsrs.pair, lsrs.last().unwrap().long)
+	let diff = NowThen::new(*lsrs.first().unwrap().long, *lsrs.first().unwrap().long);
+	format!("  ├{:<9}: {diff:<8}%", &lsrs.pair.base())
 }
