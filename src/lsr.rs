@@ -1,6 +1,8 @@
 use futures::future::join_all;
 use v_exchanges::{binance, prelude::*};
 
+const SLICE_SIZE: usize = 10;
+
 #[tokio::main]
 async fn main() {
 	v_utils::clientside!();
@@ -12,11 +14,11 @@ async fn main() {
 	let m = "Binance/Futures".into();
 	let pairs = bn.exchange_info(m).await.unwrap().usdt_pairs().collect::<Vec<_>>();
 
-	let futures = pairs.iter().map(|p| {
+	let handles = pairs.iter().map(|p| {
 		let bn = bn.clone();
 		async move {
 			match bn.lsr(*p, tf, range, "Global".into()).await {
-				Ok(lsr) if !lsr.is_empty() => Some((p, lsr[0].long() - lsr[lsr.len() - 1].long())),
+				Ok(lsr_vec) if !lsr_vec.is_empty() => Some(lsr_vec),
 				Ok(_) => {
 					tracing::info!("No data for {}", p);
 					None
@@ -28,11 +30,24 @@ async fn main() {
 			}
 		}
 	});
-	let results = join_all(futures).await;
+	let results = join_all(handles).await;
 
-	for r in results.into_iter().flatten() {
-		let (pair, diff) = r;
-		dbg!(&pair, &diff);
+	let mut lsrs = results.into_iter().flatten().collect::<Vec<_>>();
+	lsrs.sort_by(|a, b| a.last().unwrap().long().partial_cmp(&b.last().unwrap().long()).unwrap());
+
+	for i in 0..SLICE_SIZE {
+		let (short_outlier, long_outlier) = (&lsrs[i], &lsrs[lsrs.len() - i - 1]);
+
+		//let diff = lsr[0].long() - lsr[lsr.len() - 1].long();
+		//println!("{:?} - {:?}", lsr[0].time(), diff);
+		println!(
+			"{}: {}.....{}: {}",
+			short_outlier[0].pair,
+			short_outlier.last().unwrap().long,
+			long_outlier[0].pair,
+			long_outlier.last().unwrap().long
+		);
 	}
-}
 
+	//let diff = lsr[0].long() - lsr[lsr.len() - 1].long();
+}
