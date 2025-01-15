@@ -1,5 +1,9 @@
 use futures::future::join_all;
-use v_exchanges::{binance, prelude::*};
+use v_exchanges::{
+	binance::{self, data::Lsrs},
+	prelude::*,
+};
+use v_utils::NowThen;
 
 const SLICE_SIZE: usize = 10;
 
@@ -37,17 +41,10 @@ async fn main() {
 
 	for i in 0..SLICE_SIZE {
 		let (short_outlier, long_outlier) = (&lsrs[i], &lsrs[lsrs.len() - i - 1]);
-
-		//let diff = lsr[0].long() - lsr[lsr.len() - 1].long();
-		//println!("{:?} - {:?}", lsr[0].time(), diff);
-		println!(
-			"{}: {}.....{}: {}",
-			short_outlier.pair,
-			short_outlier.last().unwrap().long,
-			long_outlier.pair,
-			long_outlier.last().unwrap().long
-		);
+		println!("{}.....{}", fmt_lsr(short_outlier), fmt_lsr(long_outlier));
 	}
+}
 
-	//let diff = lsr[0].long() - lsr[lsr.len() - 1].long();
+fn fmt_lsr(lsrs: &Lsrs) -> String {
+	format!("{}: {}", lsrs.pair, lsrs.last().unwrap().long)
 }
