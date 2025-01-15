@@ -42,9 +42,9 @@ async fn main() {
 		//println!("{:?} - {:?}", lsr[0].time(), diff);
 		println!(
 			"{}: {}.....{}: {}",
-			short_outlier[0].pair,
+			short_outlier.pair,
 			short_outlier.last().unwrap().long,
-			long_outlier[0].pair,
+			long_outlier.pair,
 			long_outlier.last().unwrap().long
 		);
 	}
