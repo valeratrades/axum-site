@@ -16,8 +16,8 @@ pub async fn try_build(hours_back: u8, tf: Timeframe, market: AbsMarket) -> Resu
 	let exch_info = c.exchange_info(market).await.unwrap();
 	let all_pairs = exch_info.usdt_pairs().collect::<Vec<Pair>>();
 
-	let (normalized_df, dt_index) = collect_data(all_pairs, tf, hours_back, c).await?;
-	Ok(plotly_closes(normalized_df, dt_index, tf, market, all_pairs))
+	let (normalized_df, dt_index) = collect_data(all_pairs.clone(), tf, hours_back, c).await?;
+	Ok(plotly_closes(normalized_df, dt_index, tf, market, &all_pairs))
 }
 
 pub async fn collect_data(pairs: Vec<Pair>, tf: Timeframe, hours_back: u8, c: Box<dyn Exchange>) -> Result<(HashMap<Pair, Vec<f64>>, Vec<DateTime<Utc>>)> {
@@ -113,7 +113,7 @@ pub async fn get_historical_data(pair: Pair, tf: Timeframe, hours_back: u8, m: A
 	})
 }
 
-pub fn plotly_closes(normalized_closes: HashMap<Pair, Vec<f64>>, dt_index: Vec<DateTime<Utc>>, tf: Timeframe, m: AbsMarket, all_pairs: Vec<Pair>) -> Plot {
+pub fn plotly_closes(normalized_closes: HashMap<Pair, Vec<f64>>, dt_index: Vec<DateTime<Utc>>, tf: Timeframe, m: AbsMarket, all_pairs: &[Pair]) -> Plot {
 	let mut performance: Vec<(Pair, f64)> = normalized_closes.iter().map(|(k, v)| (*k, (v[v.len() - 1] - v[0]))).collect();
 	performance.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
 
