@@ -1,3 +1,5 @@
+use std::fmt::Write as _;
+
 use futures::future::join_all;
 use v_exchanges::{
 	adapters::{binance::BinanceOption, v_exchanges_api_generics::http::RequestConfig},
@@ -42,6 +44,13 @@ pub async fn get(tf: Timeframe, range: RequestRange) -> String {
 	let mut s = String::new();
 	let display_rows_ceiling = std::cmp::min(SLICE_SIZE, lsrs.len() / 2 /*floor*/);
 	for i in 0..display_rows_ceiling {
+		if i == 0 {
+			let shorted_title = "Most Shorted";
+			let longed_title = "Most Longed";
+			s.write_fmt(format_args!("{:<26}{:<26}\n", shorted_title, longed_title)).unwrap(); // match formatting of `fmt_lsr` (when counting, don't forget all symbols outside of main paddings)
+		} else {
+			s.push('\n');
+		}
 		let (short_outlier, long_outlier) = (&lsrs[i], &lsrs[lsrs.len() - i - 1]);
 		s.push_str(format!("{}{}", fmt_lsr(short_outlier), fmt_lsr(long_outlier)).as_str());
 	}
@@ -49,7 +58,7 @@ pub async fn get(tf: Timeframe, range: RequestRange) -> String {
 }
 
 fn fmt_lsr(lsrs: &Lsrs) -> String {
-	let diff = NowThen::new(*lsrs.first().unwrap().long, *lsrs.first().unwrap().long);
+	let diff = NowThen::new(*lsrs.get(lsrs.len() - 1).unwrap().long, *lsrs.get(0).unwrap().long);
 	let diff_f = format!("{diff}%");
-	format!("  ├{:<9}: {diff_f:<8}", &lsrs.pair.base().to_string()) // `to_string`s are required because rust is dumb as of today (2024/01/16)
+	format!("  ├{:<9}: {:<12}", &lsrs.pair.base().to_string(), diff_f) // `to_string`s are required because rust is dumb as of today (2024/01/16)
 }

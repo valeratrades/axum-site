@@ -4,14 +4,14 @@ use std::{
 };
 
 use chrono::{DateTime, Utc};
-use color_eyre::eyre::{bail, Result};
+use color_eyre::eyre::{Result, bail};
 use futures::future::join_all;
 use plotly::{Plot, Scatter, common::Line};
 use v_exchanges::prelude::*;
 use v_utils::trades::{Pair, Timeframe};
 
 //TODO: once v_exchanges implements it properly, switch to take in any market
-pub async fn try_build(limit: u16, tf: Timeframe, market: AbsMarket) -> Result<Plot> {
+pub async fn try_build(limit: RequestRange, tf: Timeframe, market: AbsMarket) -> Result<Plot> {
 	let c = market.client();
 	let exch_info = c.exchange_info(market).await.unwrap();
 	let all_pairs = exch_info.usdt_pairs().collect::<Vec<Pair>>();
@@ -20,9 +20,8 @@ pub async fn try_build(limit: u16, tf: Timeframe, market: AbsMarket) -> Result<P
 	Ok(plotly_closes(normalized_df, dt_index, tf, market, &all_pairs))
 }
 
-pub async fn collect_data(pairs: Vec<Pair>, tf: Timeframe, limit: u16, c: Box<dyn Exchange>) -> Result<(HashMap<Pair, Vec<f64>>, Vec<DateTime<Utc>>)> {
+pub async fn collect_data(pairs: Vec<Pair>, tf: Timeframe, range: RequestRange, c: Box<dyn Exchange>) -> Result<(HashMap<Pair, Vec<f64>>, Vec<DateTime<Utc>>)> {
 	//HACK: assumes we're never misaligned here,
-	assert!(limit as i64 * tf.duration().num_hours() <= 24);
 	let data: Arc<Mutex<HashMap<Pair, Vec<f64>>>> = Arc::new(Mutex::new(HashMap::new()));
 	let dt_index: Arc<Mutex<Vec<DateTime<Utc>>>> = Arc::new(Mutex::new(Vec::new()));
 	let source_market: AbsMarket = c.source_market();
@@ -31,7 +30,7 @@ pub async fn collect_data(pairs: Vec<Pair>, tf: Timeframe, limit: u16, c: Box<dy
 		let dt_index = Arc::clone(&dt_index);
 
 		tokio::spawn(async move {
-			match get_historical_data(symbol, tf, limit, source_market).await {
+			match get_historical_data(symbol, tf, range, source_market).await {
 				Ok(series) => {
 					let mut data = data.lock().unwrap();
 					data.insert(symbol, series.col_closes);
@@ -88,8 +87,8 @@ pub struct RelevantHistoricalData {
 	col_closes: Vec<f64>,
 	col_volumes: Vec<f64>,
 }
-pub async fn get_historical_data(pair: Pair, tf: Timeframe, limit: u16, m: AbsMarket) -> Result<RelevantHistoricalData> {
-	let klines = m.client().klines(pair, tf, limit.into(), m).await?;
+pub async fn get_historical_data(pair: Pair, tf: Timeframe, range: RequestRange, m: AbsMarket) -> Result<RelevantHistoricalData> {
+	let klines = m.client().klines(pair, tf, range, m).await?;
 
 	let mut open_time = Vec::new();
 	let mut open = Vec::new();
