@@ -2,6 +2,7 @@ jobs:
   clippy:
     if: github.event_name != 'pull_request'
     name: Clippy
+    needs: pre_ci
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -36,9 +37,11 @@ jobs:
       with:
         tool: cargo-sort
     - name: Check if Cargo.toml is sorted
-      run: "cargo sort -wc\nexit_code=$?\nif [ $exit_code != 0 ]; then\n  echo \"\
-        Cargo.toml is not sorted. Run \\`cargo sort -w\\` to fix it.\"\n  exit $exit_code\n\
-        fi\n"
+      run: "\t\t\t\trm -rf .cargo # cargo-sort can get confused by `[target.x86_64-unknown-linux-gnu]`\
+        \ settings in .cargo/config.toml\n        cargo sort -wc\n        exit_code=$?\n\
+        \        if [ $exit_code != 0 ]; then\n          echo \"Cargo.toml is not\
+        \ sorted. Run \\`cargo sort -w\\` to fix it.\"\n          exit $exit_code\n\
+        \        fi\n"
   tokei:
     name: Reasonable Amount of Comments
     runs-on: ubuntu-latest
