@@ -5,7 +5,7 @@ let
     tokei = import workflow-parts.shared.tokei { inherit pkgs; };
   };
   rust-base = import workflow-parts.rust.base { inherit pkgs; };
-  rustc-versions = [ "nightly" "nightly-2025-01-01" ];
+  rustc-versions = [ "nightly" ]; # "nightly-2025-01-01" ]; //something weird, if I add this, it does "error: target triple in channel name 'nightly-x86_64-unknown-linux-gnu'"
   rust-jobs-errors = {
     tests = import workflow-parts.rust.tests { inherit rustc-versions; };
     miri = import workflow-parts.rust.miri { inherit pkgs; };
