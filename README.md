@@ -27,7 +27,7 @@ TODO
 <br>
 
 <sup>
-This repository follows <a href="https://github.com/valeratrades/.github/tree/master/best_practices">my best practices</a>.
+	This repository follows [my best practices](<https://github.com/valeratrades/.github/tree/master/best_practices>) and [Tyger Style](<https://github.com/tigerbeetle/tigerbeetle/blob/main/docs/TIGER_STYLE.md>)</a>.
 </sup>
 
 #### License
