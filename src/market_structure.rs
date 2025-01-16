@@ -3,26 +3,26 @@ use std::{
 	sync::{Arc, Mutex},
 };
 
-use chrono::{DateTime, Duration, Utc};
-use color_eyre::eyre::Result;
+use chrono::{DateTime, Utc};
+use color_eyre::eyre::{bail, Result};
 use futures::future::join_all;
 use plotly::{Plot, Scatter, common::Line};
 use v_exchanges::prelude::*;
 use v_utils::trades::{Pair, Timeframe};
 
 //TODO: once v_exchanges implements it properly, switch to take in any market
-pub async fn try_build(hours_back: u8, tf: Timeframe, market: AbsMarket) -> Result<Plot> {
+pub async fn try_build(limit: u16, tf: Timeframe, market: AbsMarket) -> Result<Plot> {
 	let c = market.client();
 	let exch_info = c.exchange_info(market).await.unwrap();
 	let all_pairs = exch_info.usdt_pairs().collect::<Vec<Pair>>();
 
-	let (normalized_df, dt_index) = collect_data(all_pairs.clone(), tf, hours_back, c).await?;
+	let (normalized_df, dt_index) = collect_data(all_pairs.clone(), tf, limit, c).await?;
 	Ok(plotly_closes(normalized_df, dt_index, tf, market, &all_pairs))
 }
 
-pub async fn collect_data(pairs: Vec<Pair>, tf: Timeframe, hours_back: u8, c: Box<dyn Exchange>) -> Result<(HashMap<Pair, Vec<f64>>, Vec<DateTime<Utc>>)> {
+pub async fn collect_data(pairs: Vec<Pair>, tf: Timeframe, limit: u16, c: Box<dyn Exchange>) -> Result<(HashMap<Pair, Vec<f64>>, Vec<DateTime<Utc>>)> {
 	//HACK: assumes we're never misaligned here,
-	assert!(hours_back <= 24, "Should have an Error for this but I can't be bothered");
+	assert!(limit as i64 * tf.duration().num_hours() <= 24);
 	let data: Arc<Mutex<HashMap<Pair, Vec<f64>>>> = Arc::new(Mutex::new(HashMap::new()));
 	let dt_index: Arc<Mutex<Vec<DateTime<Utc>>>> = Arc::new(Mutex::new(Vec::new()));
 	let source_market: AbsMarket = c.source_market();
@@ -31,7 +31,7 @@ pub async fn collect_data(pairs: Vec<Pair>, tf: Timeframe, hours_back: u8, c: Bo
 		let dt_index = Arc::clone(&dt_index);
 
 		tokio::spawn(async move {
-			match get_historical_data(symbol, tf, hours_back, source_market).await {
+			match get_historical_data(symbol, tf, limit, source_market).await {
 				Ok(series) => {
 					let mut data = data.lock().unwrap();
 					data.insert(symbol, series.col_closes);
@@ -40,12 +40,16 @@ pub async fn collect_data(pairs: Vec<Pair>, tf: Timeframe, hours_back: u8, c: Bo
 					}
 				}
 				Err(e) => {
-					eprintln!("Failed to fetch data for symbol: {}. Error: {}", symbol, e);
+					tracing::warn!("Failed to fetch data for symbol: {}. Error: {}", symbol, e);
 				}
 			}
 		})
 	});
 	join_all(fetch_tasks).await;
+	if dt_index.lock().unwrap().len() == 0 {
+		bail!("Failed to fetch data for BTCUSDT, aborting");
+	}
+	tracing::info!("Fetched data for {} pairs", data.lock().unwrap().len());
 
 	let data: HashMap<Pair, Vec<f64>> = Arc::try_unwrap(data).unwrap().into_inner().unwrap();
 	let dt_index = Arc::try_unwrap(dt_index).unwrap().into_inner().unwrap();
@@ -84,10 +88,8 @@ pub struct RelevantHistoricalData {
 	col_closes: Vec<f64>,
 	col_volumes: Vec<f64>,
 }
-pub async fn get_historical_data(pair: Pair, tf: Timeframe, hours_back: u8, m: AbsMarket) -> Result<RelevantHistoricalData> {
-	let time_ago: DateTime<Utc> = Utc::now() - Duration::hours(hours_back as i64) - tf.duration(); // adjust for ongoing kline being incomplete
-
-	let klines = m.client().klines(pair, tf, time_ago.into(), m).await?;
+pub async fn get_historical_data(pair: Pair, tf: Timeframe, limit: u16, m: AbsMarket) -> Result<RelevantHistoricalData> {
+	let klines = m.client().klines(pair, tf, limit.into(), m).await?;
 
 	let mut open_time = Vec::new();
 	let mut open = Vec::new();

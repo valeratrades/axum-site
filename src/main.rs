@@ -9,7 +9,7 @@ mod lsr;
 //NB: all axum handlers are expected to be async
 #[tokio::main]
 async fn main() {
-	color_eyre::install().unwrap();
+	v_utils::clientside!();
 
 	let plot_html = Arc::new(RwLock::new(String::new()));
 	let plot_html_clone = plot_html.clone();
@@ -23,7 +23,7 @@ async fn main() {
 	let range = (24 * 12 + 1).into();
 	let lsr_str = lsr::get(tf, range).await;
 	//TODO!!!!!!!: display on the site
-	dbg!(&lsr_str);
+	println!("{:#}", lsr_str);
 
 	let listener = TcpListener::bind("127.0.0.1:53863").await.unwrap();
 	println!("listening on {}", listener.local_addr().unwrap());
