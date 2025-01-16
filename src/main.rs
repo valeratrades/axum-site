@@ -4,6 +4,7 @@ use axum::{Router, extract::State, response::Html, routing::get};
 use tokio::net::TcpListener;
 
 mod market_structure;
+mod lsr;
 
 //NB: all axum handlers are expected to be async
 #[tokio::main]
@@ -17,6 +18,12 @@ async fn main() {
 	});
 
 	let app = Router::new().route("/", get(handler)).with_state(plot_html);
+
+	let tf = "5m".into();
+	let range = (24 * 12 + 1).into();
+	let lsr_str = lsr::get(tf, range).await;
+	//TODO!!!!!!!: display on the site
+	dbg!(&lsr_str);
 
 	let listener = TcpListener::bind("127.0.0.1:53863").await.unwrap();
 	println!("listening on {}", listener.local_addr().unwrap());

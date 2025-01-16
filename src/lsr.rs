@@ -3,17 +3,11 @@ use v_exchanges::{
 	binance::{self, data::Lsrs},
 	prelude::*,
 };
-use v_utils::NowThen;
+use v_utils::{NowThen, trades::Timeframe};
 
 const SLICE_SIZE: usize = 10;
 
-#[tokio::main]
-async fn main() {
-	v_utils::clientside!();
-
-	let tf = "5m".into();
-	let range = (24 * 12 + 1).into();
-
+pub async fn get(tf: Timeframe, range: RequestRange) -> String {
 	let bn = binance::Binance::default();
 	let m = "Binance/Futures".into();
 	let pairs = bn.exchange_info(m).await.unwrap().usdt_pairs().collect::<Vec<_>>();
@@ -39,13 +33,16 @@ async fn main() {
 	let mut lsrs = results.into_iter().flatten().collect::<Vec<_>>();
 	lsrs.sort_by(|a, b| a.last().unwrap().long().partial_cmp(&b.last().unwrap().long()).unwrap());
 
+	let mut s = String::new();
 	for i in 0..SLICE_SIZE {
 		let (short_outlier, long_outlier) = (&lsrs[i], &lsrs[lsrs.len() - i - 1]);
-		println!("{}{}", fmt_lsr(short_outlier), fmt_lsr(long_outlier));
+		s.push_str(format!("{}{}", fmt_lsr(short_outlier), fmt_lsr(long_outlier)).as_str());
 	}
+	s
 }
 
 fn fmt_lsr(lsrs: &Lsrs) -> String {
 	let diff = NowThen::new(*lsrs.first().unwrap().long, *lsrs.first().unwrap().long);
-	format!("  ├{:<9}: {diff:<8}%", &lsrs.pair.base())
+	let diff_f = format!("{diff}%");
+	format!("  ├{:<9}: {diff_f:<8}", &lsrs.pair.base().to_string()) // `to_string`s are required because rust is dumb as of today (2024/01/16)
 }

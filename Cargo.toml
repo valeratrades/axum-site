@@ -30,7 +30,3 @@ tokio = { version = "^1.43.0", features = ["full"] }
 tracing = "0.1.41"
 v_exchanges = { version = "^0.3.0", path = "../v_exchanges/v_exchanges", features = ["binance", "bybit"] } #ga: rm path
 v_utils = { version = "^2.0.2", path = "../v_utils/v_utils", features = ["trades", "io"] } #ga: rm path
-
-[[example]]
-name = "test"
-path = "src/lsr.rs"
