@@ -58,11 +58,11 @@
     "hooks": {
       "locked": {
         "dir": "hooks",
-        "lastModified": 1736356205,
-        "narHash": "sha256-0DbzQdZdr5sJPtrlypOcev0AYivQ6etSUsv1XBkL+W0=",
+        "lastModified": 1737062090,
+        "narHash": "sha256-q4R7S90EKipGS9hgsLlZSBVp0lF82dQ0hHRcfNXi+TU=",
         "owner": "valeratrades",
         "repo": ".github",
-        "rev": "a7302f1b9b13ca46c663003d64f9b9ec45d956b6",
+        "rev": "724e6feeada28f9e78ad2206f0d55c72326cd7c5",
         "type": "github"
       },
       "original": {
@@ -74,11 +74,11 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1732014248,
-        "narHash": "sha256-y/MEyuJ5oBWrWAic/14LaIr/u5E0wRVzyYsouYY3W6w=",
+        "lastModified": 1736883708,
+        "narHash": "sha256-uQ+NQ0/xYU0N1CnXsa2zghgNaOPxWpMJXSUJJ9W7140=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "23e89b7da85c3640bbc2173fe04f4bd114342367",
+        "rev": "eb62e6aa39ea67e0b8018ba8ea077efe65807dc8",
         "type": "github"
       },
       "original": {
@@ -106,11 +106,11 @@
     },
     "nixpkgs_3": {
       "locked": {
-        "lastModified": 1728538411,
-        "narHash": "sha256-f0SBJz1eZ2yOuKUr5CA9BHULGXVSn6miBuUWdTyhUhU=",
+        "lastModified": 1736320768,
+        "narHash": "sha256-nIYdTAiKIGnFNugbomgBJR+Xv5F1ZQU+HfaBqJKroC0=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "b69de56fac8c2b6f8fd27f2eca01dcda8e0a4221",
+        "rev": "4bc9c909d9ac828a039f288cf872d16d38185db8",
         "type": "github"
       },
       "original": {
@@ -127,11 +127,11 @@
         "nixpkgs": "nixpkgs_2"
       },
       "locked": {
-        "lastModified": 1735882644,
-        "narHash": "sha256-3FZAG+pGt3OElQjesCAWeMkQ7C/nB1oTHLRQ8ceP110=",
+        "lastModified": 1737043064,
+        "narHash": "sha256-I/OuxGwXwRi5gnFPsyCvVR+IfFstA+QXEpHu1hvsgD8=",
         "owner": "cachix",
         "repo": "git-hooks.nix",
-        "rev": "a5a961387e75ae44cc20f0a57ae463da5e959656",
+        "rev": "94ee657f6032d913fe0ef49adaa743804635b0bb",
         "type": "github"
       },
       "original": {
@@ -155,11 +155,11 @@
         "nixpkgs": "nixpkgs_3"
       },
       "locked": {
-        "lastModified": 1736303309,
-        "narHash": "sha256-IKrk7RL+Q/2NC6+Ql6dwwCNZI6T6JH2grTdJaVWHF0A=",
+        "lastModified": 1736994333,
+        "narHash": "sha256-v4Jrok5yXsZ6dwj2+2uo5cSyUi9fBTurHqHvNHLT1XA=",
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "rev": "a0b81d4fa349d9af1765b0f0b4a899c13776f706",
+        "rev": "848db855cb9e88785996e961951659570fc58814",
         "type": "github"
       },
       "original": {
@@ -186,11 +186,11 @@
     "workflow-parts": {
       "locked": {
         "dir": ".github/workflows/nix-parts",
-        "lastModified": 1736369877,
-        "narHash": "sha256-FCoFgmKLdCT6ocd4IuevICKwUcr7eR6UcB5S4VNXqA8=",
+        "lastModified": 1737062090,
+        "narHash": "sha256-q4R7S90EKipGS9hgsLlZSBVp0lF82dQ0hHRcfNXi+TU=",
         "owner": "valeratrades",
         "repo": ".github",
-        "rev": "52154fcd7a74ef8878864376ad2872a3ec2732a7",
+        "rev": "724e6feeada28f9e78ad2206f0d55c72326cd7c5",
         "type": "github"
       },
       "original": {
