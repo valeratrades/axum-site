@@ -6,14 +6,15 @@ use v_exchanges::{
 	binance::{self, data::Lsrs},
 	prelude::*,
 };
-use v_utils::{NowThen, trades::Timeframe};
+use v_utils::prelude::*;
 
 const SLICE_SIZE: usize = 10;
 
-pub async fn get(tf: Timeframe, range: RequestRange) -> String {
+pub async fn get(tf: Timeframe, range: RequestRange) -> Result<String> {
 	let mut bn = binance::Binance::default();
 	let mut request_conf = RequestConfig::default();
-	request_conf.timeout = std::time::Duration::from_secs(10); // default `recvWindow`, (how Binance calls it), for futs is 5000ms (2024/01/16)
+	//TODO: switch to recvWinow. `timeout` is incorrect thing to use here.
+	request_conf.timeout = std::time::Duration::from_secs(10);
 	bn.update_default_option(BinanceOption::RequestConfig(request_conf));
 
 	let m = "Binance/Futures".into();
@@ -54,7 +55,7 @@ pub async fn get(tf: Timeframe, range: RequestRange) -> String {
 		let (short_outlier, long_outlier) = (&lsrs[i], &lsrs[lsrs.len() - i - 1]);
 		s.push_str(format!("{}{}", fmt_lsr(short_outlier), fmt_lsr(long_outlier)).as_str());
 	}
-	s
+	Ok(s)
 }
 
 fn fmt_lsr(lsrs: &Lsrs) -> String {
