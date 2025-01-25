@@ -12,11 +12,14 @@ use v_utils::trades::{Pair, Timeframe};
 
 //TODO: once v_exchanges implements it properly, switch to take in any market
 pub async fn try_build(limit: RequestRange, tf: Timeframe, market: AbsMarket) -> Result<Plot> {
-	let c = market.client();
-	let exch_info = c.exchange_info(market).await.unwrap();
+	let mut exchange = market.client();
+	//exchange.client_mut().update_default_option(BinanceOption::RequestConfig { recv_window: Some(5000) });
+	exchange.set_max_tries(3);
+
+	let exch_info = exchange.exchange_info(market).await.unwrap();
 	let all_pairs = exch_info.usdt_pairs().collect::<Vec<Pair>>();
 
-	let (normalized_df, dt_index) = collect_data(all_pairs.clone(), tf, limit, c).await?;
+	let (normalized_df, dt_index) = collect_data(all_pairs.clone(), tf, limit, exchange).await?;
 	Ok(plotly_closes(normalized_df, dt_index, tf, market, &all_pairs))
 }
 

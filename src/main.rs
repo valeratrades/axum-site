@@ -1,9 +1,10 @@
+#![feature(duration_constructors)]
 use std::sync::{Arc, RwLock};
 
 use axum::{Router, extract::State, response::Html, routing::get};
 use tokio::net::TcpListener;
 use v_exchanges::RequestRange;
-use v_utils::trades::Timeframe;
+use v_utils::prelude::*;
 
 mod cme;
 mod lsr;
@@ -15,10 +16,9 @@ struct AppState {
 	cme_str: String,
 }
 
-//NB: all axum handlers are expected to be async
 #[tokio::main]
 async fn main() {
-	color_eyre::install().unwrap();
+	clientside!();
 
 	let state = Arc::new(RwLock::new(AppState {
 		plot_html: "Waiting for MarketStructure data...".into(),
@@ -27,7 +27,7 @@ async fn main() {
 	}));
 
 	let tf = "5m".into();
-	let range = (24 * 12 + 1).into(); //24h, given `5m` tf
+	let range = (24 * 12 + 1).into(); // 24h, given `5m` tf
 	let state_clone = state.clone();
 	tokio::spawn(async move {
 		update_plot(range, tf, state_clone).await;
@@ -52,16 +52,103 @@ async fn main() {
 
 async fn handler(State(state): State<Arc<RwLock<AppState>>>) -> Html<String> {
 	let state = state.read().unwrap();
+	std::fs::write("./tmp/plot.html", &state.plot_html).unwrap();
 	let html = state.plot_html.clone();
 	Html(format!(
-		"{}\n\
-       <div style='width: 1600px; margin: 20px auto; display: flex; gap: 20px'>\
-           <pre style='margin: 0; flex: 1; height: 400px; overflow: auto'>{}</pre>\
-           <pre style='margin: 0; flex: 1; height: 400px; overflow: auto'>{}</pre>\
-       </div>",
+		r#"
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Resizable Boxes</title>
+            <style>
+                body {{
+                    margin: 0;
+                    padding: 20px;
+                    box-sizing: border-box;
+                    height: 100vh;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 20px;
+                }}
+                .container {{
+                    display: flex;
+                    gap: 20px;
+                    flex: 1;
+                    min-height: 0;
+                }}
+                .resizable {{
+                    width: fit-content;
+                    height: fit-content;
+                    max-width: 100%;
+                    max-height: 100%;
+                    overflow: auto;
+                    border: 1px solid #ccc;
+                    position: relative;
+                }}
+                .resizable .resizer {{
+                    width: 10px;
+                    height: 10px;
+                    background: #ccc;
+                    position: absolute;
+                    right: 0;
+                    bottom: 0;
+                    cursor: se-resize;
+                }}
+            </style>
+        </head>
+        <body>
+            {}
+            <div class="container">
+                <div class="resizable">
+                    <pre style="margin: 0;">{}</pre>
+                    <div class="resizer"></div>
+                </div>
+                <div class="resizable">
+                    <pre style="margin: 0;">{}</pre>
+                    <div class="resizer"></div>
+                </div>
+            </div>
+            <script>
+                document.querySelectorAll('.resizer').forEach(resizer => {{
+                    const resizable = resizer.parentElement;
+                    let startX, startY, startWidth, startHeight;
+
+                    resizer.addEventListener('mousedown', initDrag, false);
+
+                    function initDrag(e) {{
+                        startX = e.clientX;
+                        startY = e.clientY;
+                        startWidth = parseInt(document.defaultView.getComputedStyle(resizable).width, 10);
+                        startHeight = parseInt(document.defaultView.getComputedStyle(resizable).height, 10);
+                        document.documentElement.addEventListener('mousemove', doDrag, false);
+                        document.documentElement.addEventListener('mouseup', stopDrag, false);
+                    }}
+
+                    function doDrag(e) {{
+                        const newWidth = startWidth + e.clientX - startX;
+                        const newHeight = startHeight + e.clientY - startY;
+                        const maxWidth = window.innerWidth - resizable.offsetLeft - 20; // 20px padding
+                        const maxHeight = window.innerHeight - resizable.offsetTop - 20; // 20px padding
+
+                        resizable.style.width = Math.min(newWidth, maxWidth) + 'px';
+                        resizable.style.height = Math.min(newHeight, maxHeight) + 'px';
+                    }}
+
+                    function stopDrag() {{
+                        document.documentElement.removeEventListener('mousemove', doDrag, false);
+                        document.documentElement.removeEventListener('mouseup', stopDrag, false);
+                    }}
+                }});
+            </script>
+        </body>
+        </html>
+        "#,
 		html, state.lsr_str, state.cme_str
 	))
 }
+
 async fn update_plot(limit: RequestRange, tf: Timeframe, state: Arc<RwLock<AppState>>) {
 	let m: v_exchanges::AbsMarket = "Binance/Futures".into();
 

@@ -1,10 +1,10 @@
-use chrono::{DateTime, NaiveDateTime, TimeDelta, TimeZone, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 use chrono_tz::{America::New_York, Tz};
-use reqwest;
-use v_utils::prelude_clientside::*;
+use v_utils::prelude::*;
 
 static CFTC_CODE_BTC: u32 = 133741;
 
+#[allow(unused)]
 #[derive(Clone, Debug, Default, derive_new::new, Copy)]
 struct PositionsInfo {
 	current: f64,
@@ -13,6 +13,7 @@ struct PositionsInfo {
 	number_of_traders: Option<u32>,
 }
 
+#[allow(unused)]
 #[derive(Clone, Debug, Default, derive_new::new, Copy)]
 struct Positions {
 	long: PositionsInfo,
@@ -20,6 +21,7 @@ struct Positions {
 	spreading: PositionsInfo,
 }
 
+#[allow(unused)]
 #[derive(Clone, Debug, Default, derive_new::new)]
 struct CftcReport {
 	// pub asset: String,
@@ -166,10 +168,10 @@ impl TryFrom<&[String; 20]> for CftcReport {
 
 		Ok(CftcReport {
 			date,
-			dealer_intermidiary: create_positions(0, &positions, &changes, &percents, &traders)?,
-			asset_manager_or_institutional: create_positions(3, &positions, &changes, &percents, &traders)?,
-			leveraged_funds: create_positions(6, &positions, &changes, &percents, &traders)?,
-			other_reportables: create_positions(9, &positions, &changes, &percents, &traders)?,
+			dealer_intermidiary: create_positions(0, &positions, &changes, &percents, traders)?,
+			asset_manager_or_institutional: create_positions(3, &positions, &changes, &percents, traders)?,
+			leveraged_funds: create_positions(6, &positions, &changes, &percents, traders)?,
+			other_reportables: create_positions(9, &positions, &changes, &percents, traders)?,
 			_non_reportables: None,
 		})
 	}
@@ -220,7 +222,10 @@ pub async fn fetch_cftc_positions() -> Result<String> {
 	))
 }
 
+#[allow(unused)]
 #[tokio::main]
+#[doc(hidden)]
+/// for testing purposes
 async fn main() {
 	clientside!();
 
