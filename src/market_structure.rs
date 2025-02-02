@@ -1,14 +1,8 @@
-use std::{
-	collections::HashMap,
-	sync::{Arc, Mutex},
-};
-
 use chrono::{DateTime, Utc};
-use color_eyre::eyre::{Result, bail};
 use futures::future::join_all;
 use plotly::{Plot, Scatter, common::Line};
 use v_exchanges::prelude::*;
-use v_utils::trades::{Pair, Timeframe};
+use v_utils::prelude::*;
 
 //TODO: once v_exchanges implements it properly, switch to take in any market
 pub async fn try_build(limit: RequestRange, tf: Timeframe, market: AbsMarket) -> Result<Plot> {
@@ -19,42 +13,43 @@ pub async fn try_build(limit: RequestRange, tf: Timeframe, market: AbsMarket) ->
 	let exch_info = exchange.exchange_info(market).await.unwrap();
 	let all_pairs = exch_info.usdt_pairs().collect::<Vec<Pair>>();
 
-	let (normalized_df, dt_index) = collect_data(all_pairs.clone(), tf, limit, exchange).await?;
+	let (normalized_df, dt_index) = collect_data(all_pairs.clone(), tf, limit, Arc::new(exchange)).await?;
 	Ok(plotly_closes(normalized_df, dt_index, tf, market, &all_pairs))
 }
 
-pub async fn collect_data(pairs: Vec<Pair>, tf: Timeframe, range: RequestRange, c: Box<dyn Exchange>) -> Result<(HashMap<Pair, Vec<f64>>, Vec<DateTime<Utc>>)> {
-	//HACK: assumes we're never misaligned here,
-	let data: Arc<Mutex<HashMap<Pair, Vec<f64>>>> = Arc::new(Mutex::new(HashMap::new()));
-	let dt_index: Arc<Mutex<Vec<DateTime<Utc>>>> = Arc::new(Mutex::new(Vec::new()));
-	let source_market: AbsMarket = c.source_market();
-	let fetch_tasks = pairs.into_iter().map(|symbol| {
-		let data = Arc::clone(&data);
-		let dt_index = Arc::clone(&dt_index);
-
-		tokio::spawn(async move {
-			match get_historical_data(symbol, tf, range, source_market).await {
-				Ok(series) => {
-					let mut data = data.lock().unwrap();
-					data.insert(symbol, series.col_closes);
-					if &symbol.to_string() == "BTCUSDT" {
-						*dt_index.lock().unwrap() = series.col_open_times;
-					}
-				}
+pub async fn collect_data(pairs: Vec<Pair>, tf: Timeframe, range: RequestRange, exchange: Arc<Box<dyn Exchange>>) -> Result<(HashMap<Pair, Vec<f64>>, Vec<DateTime<Utc>>)> {
+	//HACK: assumes we're never misaligned here
+	let futures = pairs.into_iter().map(|symbol| {
+		let exchange = Arc::clone(&exchange);
+		async move {
+			match get_historical_data(symbol, tf, range, exchange).await {
+				Ok(series) => Ok((symbol, series)),
 				Err(e) => {
 					tracing::warn!("Failed to fetch data for symbol: {}. Error: {}", symbol, e);
+					Err(e)
 				}
 			}
-		})
+		}
 	});
-	join_all(fetch_tasks).await;
-	if dt_index.lock().unwrap().len() == 0 {
+
+	let results = join_all(futures).await;
+	let mut data: HashMap<Pair, Vec<f64>> = HashMap::new();
+	let mut dt_index = Vec::new();
+
+	results.into_iter().for_each(|result| {
+		if let Ok((pair, series)) = result {
+			if "BTCUSDT" == pair {
+				dt_index = series.col_open_times;
+			}
+			data.insert(pair, series.col_closes);
+		}
+	});
+
+	if dt_index.is_empty() {
 		bail!("Failed to fetch data for BTCUSDT, aborting");
 	}
-	tracing::info!("Fetched data for {} pairs", data.lock().unwrap().len());
+	tracing::info!("Fetched data for {} pairs", data.len());
 
-	let data: HashMap<Pair, Vec<f64>> = Arc::try_unwrap(data).unwrap().into_inner().unwrap();
-	let dt_index = Arc::try_unwrap(dt_index).unwrap().into_inner().unwrap();
 	let mut normalized_df: HashMap<Pair, Vec<f64>> = HashMap::new();
 	for (symbol, closes) in data.into_iter() {
 		let first_close: f64 = match closes.first() {
@@ -90,8 +85,8 @@ pub struct RelevantHistoricalData {
 	col_closes: Vec<f64>,
 	col_volumes: Vec<f64>,
 }
-pub async fn get_historical_data(pair: Pair, tf: Timeframe, range: RequestRange, m: AbsMarket) -> Result<RelevantHistoricalData> {
-	let klines = m.client().klines(pair, tf, range, m).await?;
+pub async fn get_historical_data(pair: Pair, tf: Timeframe, range: RequestRange, exchange: Arc<Box<dyn Exchange>>) -> Result<RelevantHistoricalData> {
+	let klines = exchange.klines(pair, tf, range, exchange.source_market()).await?;
 
 	let mut open_time = Vec::new();
 	let mut open = Vec::new();
@@ -117,6 +112,7 @@ pub async fn get_historical_data(pair: Pair, tf: Timeframe, range: RequestRange,
 	})
 }
 
+//TODO!!!: provide additional information: 1) BTCDOM, 2) average, 3) correlation, 4) volatility
 pub fn plotly_closes(normalized_closes: HashMap<Pair, Vec<f64>>, dt_index: Vec<DateTime<Utc>>, tf: Timeframe, m: AbsMarket, all_pairs: &[Pair]) -> Plot {
 	let mut performance: Vec<(Pair, f64)> = normalized_closes.iter().map(|(k, v)| (*k, (v[v.len() - 1] - v[0]))).collect();
 	performance.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());

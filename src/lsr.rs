@@ -5,8 +5,11 @@ use v_exchanges::{
 };
 use v_utils::prelude::*;
 
+use crate::Mock;
+
 const SLICE_SIZE: usize = 10;
 
+//Q: potentially fix to "1D", req and store full month of data for both Global and Top Positions, to display when searching for specific one.
 pub async fn get(tf: Timeframe, range: RequestRange) -> Result<String> {
 	let mut bn = binance::Binance::default();
 	bn.set_max_tries(3);
@@ -15,7 +18,7 @@ pub async fn get(tf: Timeframe, range: RequestRange) -> Result<String> {
 	let pairs = bn.exchange_info(m).await.unwrap().usdt_pairs().collect::<Vec<_>>();
 	let pairs_len = pairs.len();
 
-	let lsr_no_data_pairs_file = state_dir!().join("lsr_no_data_pairs");
+	let lsr_no_data_pairs_file = share_dir!().join("lsr_no_data_pairs");
 	let lsr_no_data_pairs = match std::fs::metadata(&lsr_no_data_pairs_file) {
 		Ok(metadata) => {
 			let age = metadata.modified().unwrap().elapsed().unwrap();
@@ -60,31 +63,54 @@ pub async fn get(tf: Timeframe, range: RequestRange) -> Result<String> {
 		std::fs::write(&lsr_no_data_pairs_file, all_no_data_pairs.join("\n")).unwrap();
 	}
 
-	let mut lsrs = results.into_iter().flatten().collect::<Vec<_>>();
-	lsrs.sort_by(|a, b| a.last().unwrap().long().partial_cmp(&b.last().unwrap().long()).unwrap());
+	let lsrs: Vec<Lsrs> = results.into_iter().flatten().collect();
+	let sorted_lsrs = SortedLsrs::build(lsrs);
 
-	//TODO!!: show a) average b) number of pairs with collected data, against total
 	let mut s = String::new();
-	let display_rows_ceiling = std::cmp::min(SLICE_SIZE, lsrs.len() / 2 /*floor*/);
+	let display_rows_ceiling = std::cmp::min(SLICE_SIZE, sorted_lsrs.len() / 2 /*floor*/);
+	let width = Lsrs::CHANGE_STR_LEN;
 	for i in 0..display_rows_ceiling {
 		if i == 0 {
-			let shorted_title = "Most Shorted (% longs)";
-			let longed_title = "Most Longed (% longs)";
-			s.write_fmt(format_args!("{:<26}{:<26}\n", shorted_title, longed_title)).unwrap(); // match formatting of `fmt_lsr` (when counting, don't forget all symbols outside of main paddings)
+			let title = |t: &'static str| -> std::fmt::Arguments {
+				//SAFETY: `t` is literally static
+				unsafe { std::mem::transmute::<std::fmt::Arguments, std::fmt::Arguments>(format_args!("{:<width$}", format!("Most {t} (% longs)"), width = width)) }
+			};
+
+			s.write_fmt(format_args!("{}{}", title("Shorted"), title("Longed"))).unwrap(); // match formatting of `fmt_lsr` (when counting, don't forget all symbols outside of main paddings)
 		} else {
 			s.push('\n');
 		}
-		let (short_outlier, long_outlier) = (&lsrs[i], &lsrs[lsrs.len() - i - 1]);
-		s.push_str(format!("{}{}", fmt_lsr(short_outlier), fmt_lsr(long_outlier)).as_str());
+		s.push_str(&sorted_lsrs.display_most_shorted_longed_row(i)?);
 	}
-	s.push_str(&format!("\n{:-^26}", ""));
-	s.push_str(&format!("\nAverage: {:.2}", lsrs.iter().map(|lsr| lsr.last().unwrap().long()).sum::<f64>() / lsrs.len() as f64));
-	s.push_str(&format!("\nCollected for {}/{pairs_len} pairs on Binance", lsrs.len()));
+	s.push_str(&format!("\n{:-^width$}", "", width = width));
+	s.push_str(&format!(
+		"\nAverage: {:.2}",
+		sorted_lsrs.iter().map(|lsr| lsr.last().unwrap().long()).sum::<f64>() / sorted_lsrs.len() as f64
+	));
+	s.push_str(&format!("\nCollected for {}/{pairs_len} pairs on {}", sorted_lsrs.len(), m));
 	Ok(s)
 }
 
-fn fmt_lsr(lsrs: &Lsrs) -> String {
-	let diff = NowThen::new(*lsrs.get(lsrs.len() - 1).unwrap().long, *lsrs.get(0).unwrap().long);
-	let diff_f = format!("{diff}");
-	format!("  ├{:<9}: {:<12}", &lsrs.pair.base().to_string(), diff_f) // `to_string`s are required because rust is dumb as of today (2024/01/16)
+/// Inner values are guaranteed to be sorted
+#[derive(Clone, Debug, derive_more::Deref, derive_more::DerefMut, Deserialize, Serialize)]
+pub struct SortedLsrs {
+	v: Vec<Lsrs>,
+}
+impl SortedLsrs {
+	pub fn build(mut v: Vec<Lsrs>) -> Self {
+		v.sort_by(|a, b| a.last().unwrap().long().partial_cmp(&b.last().unwrap().long()).unwrap());
+		Self { v }
+	}
+
+	pub fn display_most_shorted_longed_row(&self, i: usize) -> Result<String> {
+		if self.len() < 2 * i {
+			bail!("Not enough data");
+		}
+		let shorted_str = self.get(i).expect("checked earlier").display_change()?;
+		let longed_str = self.get(self.len() - i - 1).expect("checked earlier").display_change()?;
+		Ok(format!("{shorted_str}{longed_str}"))
+	}
+}
+impl Mock for SortedLsrs {
+	const NAME: &'static str = "lsrs";
 }
